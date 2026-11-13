@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+
+<html lang="ja">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>CINEMA VOICE</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+
+*{box-sizing:border-box}
+
+body{
+
+ margin:0;
+
+ background:#101014;
+
+ color:#eee;
+
+ font-family:Arial,sans-serif;
+
+}
+
+header{
+
+ text-align:center;
+
+ padding:35px 15px;
+
+ background:#08080c;
+
+ border-bottom:2px solid #b99752;
+
+}
+
+h1{
+
+ font-size:34px;
+
+ letter-spacing:5px;
+
+ color:#d5b46a;
+
+}
+
+header p{color:#aaa}
+
+main{
+
+ max-width:850px;
+
+ margin:30px auto;
+
+ padding:15px;
+
+}
+
+h2{
+
+ border-left:4px solid #d5b46a;
+
+ padding-left:12px;
+
+}
+
+.panel{
+
+ background:#1c1c23;
+
+ padding:20px;
+
+ border-radius:10px;
+
+ margin-bottom:25px;
+
+}
+
+input,textarea,select{
+
+ width:100%;
+
+ padding:13px;
+
+ margin:8px 0;
+
+ background:#101014;
+
+ color:white;
+
+ border:1px solid #555;
+
+ border-radius:5px;
+
+ font-size:16px;
+
+}
+
+textarea{height:110px}
+
+button{
+
+ background:#b99752;
+
+ color:#111;
+
+ border:0;
+
+ padding:13px 22px;
+
+ border-radius:5px;
+
+ font-weight:bold;
+
+}
+
+.review{
+
+ background:#202027;
+
+ padding:18px;
+
+ margin:15px 0;
+
+ border-radius:8px;
+
+}
+
+.stars{color:#e5bd62;font-size:20px}
+
+small{color:#aaa}
+
+</style>
+</head>
+
+<body>
+
+<header>
+
+<h1>CINEMA VOICE</h1>
+
+<p>映画を語ろう。映画を楽しもう。</p>
+
+</header>
+
+<main>
+
+<section class="panel">
+
+<h2>映画レビュー投稿</h2>
+
+<form id="reviewForm">
+
+<input id="movie" placeholder="映画タイトル" required>
+
+<input id="author" placeholder="投稿者名（空欄なら匿名）">
+
+<select id="rating">
+
+<option value="5">★★★★★ 最高！</option>
+
+<option value="4">★★★★☆ 良い</option>
+
+<option value="3">★★★☆☆ 普通</option>
+
+<option value="2">★★☆☆☆ いまひとつ</option>
+
+<option value="1">★☆☆☆☆ おすすめしない</option>
+
+</select>
+
+<textarea id="comment" placeholder="映画の感想を書いてください" required></textarea>
+
+<button type="submit">レビューを投稿</button>
+
+<p id="message"></p>
+
+</form>
+
+</section>
+
+<h2>映画レビュー一覧</h2>
+
+<input id="search" placeholder="映画タイトルを検索">
+
+<select id="sort">
+
+<option value="new">新着順</option>
+
+<option value="rating">高評価順</option>
+
+</select>
+
+<div id="reviews">読み込み中...</div>
+
+</main>
+
+<footer>CINEMA VOICE © 2026</footer>
+<script>
+
+const SUPABASE_URL = "https://ikrgtdvidtxlzbxrjdtx.supabase.co";
+
+const SUPABASE_KEY = "sb_publishable_YfkYHqrsl8u7k_d2mKi8YQ_ngMBOOas";
+
+const db = window.supabase.createClient(
+
+  SUPABASE_URL,
+
+  SUPABASE_KEY
+
+);
+
+let reviews = [];
+
+async function loadReviews() {
+
+  const {data, error} = await db
+
+    .from("reviews")
+
+    .select("*")
+
+    .order("created_at", {ascending:false});
+
+  if(error) {
+
+    document.getElementById("reviews").textContent =
+
+      "読み込みエラー：" + error.message;
+
+    return;
+
+  }
+
+  reviews = data || [];
+
+  showReviews();
+
+}
+
+function showReviews() {
+
+  const word = document.getElementById("search").value.toLowerCase();
+
+  const sort = document.getElementById("sort").value;
+
+  let list = reviews.filter(r =>
+
+    r.movie_title.toLowerCase().includes(word)
+
+  );
+
+  if(sort === "rating") {
+
+    list.sort((a,b) => b.rating-a.rating);
+
+  }
+
+  const area = document.getElementById("reviews");
+
+  area.replaceChildren();
+
+  if(list.length === 0) {
+
+    area.textContent = "まだレビューがありません。";
+
+    return;
+
+  }
+
+  list.forEach(r => {
+
+    const card = document.createElement("div");
+
+    card.className = "review";
+
+    const title = document.createElement("h3");
+
+    title.textContent = r.movie_title;
+
+    const stars = document.createElement("div");
+
+    stars.className = "stars";
+
+    stars.textContent =
+
+      "★".repeat(r.rating) + "☆".repeat(5-r.rating);
+
+    const comment = document.createElement("p");
+
+    comment.textContent = r.review_text;
+
+    const author = document.createElement("small");
+
+    author.textContent = "投稿者：" + r.author_name;
+
+    card.append(title, stars, comment, author);
+
+    area.append(card);
+
+  });
+
+}
+
+document.getElementById("reviewForm")
+
+.addEventListener("submit", async e => {
+
+  e.preventDefault();
+
+  const message = document.getElementById("message");
+
+  message.textContent = "投稿中...";
+
+  const {error} = await db.from("reviews").insert([{
+
+    movie_title: document.getElementById("movie").value.trim(),
+
+    author_name: document.getElementById("author").value.trim() || "匿名",
+
+    rating: Number(document.getElementById("rating").value),
+
+    review_text: document.getElementById("comment").value.trim()
+
+  }]);
+
+  if(error) {
+
+    message.textContent = "投稿エラー：" + error.message;
+
+    return;
+
+  }
+
+  message.textContent = "投稿しました！";
+
+  e.target.reset();
+
+  await loadReviews();
+
+});
+
+document.getElementById("search")
+
+.addEventListener("input", showReviews);
+
+document.getElementById("sort")
+
+.addEventListener("change", showReviews);
+
+loadReviews();
+
+</script>
+
+</body>
+
+</html>
